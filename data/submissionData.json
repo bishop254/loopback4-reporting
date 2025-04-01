@@ -1,0 +1,22 @@
+{
+    "ids": {
+      "SubmissionData": 12
+    },
+    "models": {
+      "SubmissionData": {
+        "862": "{\"id\":862,\"dcfId\":11,\"level\":1,\"locationId\":1,\"reporting_period\":[\"07-2023\",\"08-2023\"],\"type\":1}",
+        "941": "{\"id\":941,\"dcfId\":11,\"level\":1,\"locationId\":1,\"reporting_period\":[\"01-2024\",\"02-2024\",\"03-2024\"],\"type\":3}",
+        "357": "{\"id\":357,\"dcfId\":11,\"level\":1,\"locationId\":1,\"reporting_period\":[\"04-2024\",\"05-2024\",\"06-2024\"],\"type\":0}",
+        "975": "{\"id\":975,\"dcfId\":10,\"level\":2,\"locationId\":2,\"reporting_period\":[\"03-2024\"],\"type\":0}",
+        "152": "{\"id\":152,\"dcfId\":36,\"level\":2,\"locationId\":2,\"reporting_period\":[\"01-2024\",\"02-2024\",\"03-2024\",\"04-2024\"],\"type\":0}",
+        "345": "{\"id\":345,\"dcfId\":15,\"level\":3,\"locationId\":3,\"reporting_period\":[\"07-2023\",\"08-2023\",\"09-2023\",\"10-2023\",\"11-2023\"],\"type\":0}",
+        "990": "{\"id\":990,\"dcfId\":257,\"level\":2,\"locationId\":2,\"reporting_period\":[\"07-2024\",\"08-2024\",\"09-2024\"],\"type\":1}",
+        "372": "{\"id\":372,\"dcfId\":36,\"level\":2,\"locationId\":2,\"reporting_period\":[\"01-2024\",\"02-2024\",\"03-2024\"],\"type\":1}",
+        "744": "{\"id\":744,\"dcfId\":257,\"level\":3,\"locationId\":3,\"reporting_period\":[\"06-2024\",\"07-2024\"],\"type\":3}",
+        "72": "{\"id\":72,\"dcfId\":10,\"level\":0,\"locationId\":0,\"reporting_period\":[\"02-2024\",\"03-2024\"],\"type\":1}",
+        "266": "{\"id\":266,\"dcfId\":10,\"level\":0,\"locationId\":0,\"reporting_period\":[\"04-2024\",\"05-2024\"],\"type\":0}",
+        "950": "{\"id\":950,\"dcfId\":10,\"level\":0,\"locationId\":0,\"reporting_period\":[\"06-2024\"],\"type\":2}"
+      }
+    }
+  }
+  

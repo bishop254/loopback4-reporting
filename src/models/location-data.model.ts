@@ -13,30 +13,21 @@ export class LocationData extends Entity {
     type: 'string',
     required: true,
   })
-  name: string;
-
-  @property({
-    type: 'string',
-  })
-  data1?: string;
-
-  @property({
-    type: 'string',
-  })
-  data2?: string;
-
-  @property({
-    type: 'number',
-    required: true,
-  })
-  userProfileId: number;
+  locationData: string;
 
   @property({
     type: 'array',
     itemType: 'object',
     required: true,
   })
-  locationTwos: Record<string, any>[];
+  locationTwos: {
+    id: number;
+    locationData: string;
+    locationThrees: {
+      id: number;
+      locationData: string;
+    }[];
+  }[];
 
   constructor(data?: Partial<LocationData>) {
     super(data);

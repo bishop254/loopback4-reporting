@@ -36,8 +36,7 @@ export class LocationData extends Entity {
     itemType: 'object',
     required: true,
   })
-  locationTwos: object[];
-
+  locationTwos: Record<string, any>[];
 
   constructor(data?: Partial<LocationData>) {
     super(data);

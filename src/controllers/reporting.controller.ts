@@ -20,29 +20,75 @@ export class ReportingController {
     public locationDataRepository: LocationDataRepository,
   ) {}
 
-  calculateReportingPeriods(
-    startDate: string,
-    endDate: string,
-    frequency: number,
-  ): string[] {
-    const periods = [];
-    let currentDate = new Date(startDate);
-    const end = new Date(endDate);
-
-    while (currentDate <= end) {
-      periods.push(
-        `${currentDate.getMonth() + 1}-${currentDate.getFullYear()}`,
-      );
-      currentDate.setMonth(currentDate.getMonth() + frequency);
-    }
-
-    return periods;
-  }
-
   async getUsersByIds(userIds: number[]): Promise<UserData[]> {
     return await this.userDataRepository.find({
       where: {id: {inq: userIds}},
     });
+  }
+
+  async getSortedEntity(
+    level: number,
+    locationId: number,
+  ): Promise<{id: number; locationData: string} | string> {
+    const locations = await this.locationDataRepository.find();
+
+    const locationMap = new Map<number, {id: number; locationData: string}>();
+    const locationTwoMap = new Map<
+      number,
+      {id: number; locationData: string}
+    >();
+    const locationThreeMap = new Map<
+      number,
+      {id: number; locationData: string}
+    >();
+
+    for (const loc of locations) {
+      locationMap.set(loc.id!, {id: loc.id!, locationData: loc.locationData});
+
+      for (const locTwo of loc.locationTwos ?? []) {
+        locationTwoMap.set(locTwo.id, {
+          id: locTwo.id,
+          locationData: locTwo.locationData,
+        });
+
+        for (const locThree of locTwo.locationThrees ?? []) {
+          locationThreeMap.set(locThree.id, {
+            id: locThree.id,
+            locationData: locThree.locationData,
+          });
+        }
+      }
+    }
+
+    if (level === 1) return locationMap.get(locationId) ?? 'No Data Found';
+    if (level === 2) return locationTwoMap.get(locationId) ?? 'No Level 2 Data';
+    if (level === 3)
+      return locationThreeMap.get(locationId) ?? 'No Level 3 Data';
+
+    return 'Invalid Level';
+  }
+
+  calculateReportingPeriods(
+    startDate: string,
+    endDate: string,
+    frequency: number,
+  ): string[][] {
+    const periods: string[][] = [];
+    let currentDate = new Date(startDate);
+    const end = new Date(endDate);
+
+    while (currentDate <= end) {
+      const periodGroup = [];
+      for (let i = 0; i < frequency && currentDate <= end; i++) {
+        periodGroup.push(
+          `${currentDate.getMonth() + 1}-${currentDate.getFullYear()}`,
+        );
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+      periods.push(periodGroup);
+    }
+
+    return periods;
   }
 
   getSubmissionStatus(submission: any): string {
@@ -65,32 +111,6 @@ export class ReportingController {
         return 'Pending Submission';
     }
   }
-
-  async getEntity(level: number, locationId: number): Promise<any> {
-    const location = await this.locationDataRepository.findOne({
-      where: { id: locationId },
-    });
-  
-    if (!location) {
-      return 'Unknown Entity';
-    }
-  
-    if (level === 1) {
-      return location;
-    }
-  
-    if (level === 2) {
-      return location.locationTwos ?? 'No Level 2 Data';
-    }
-  
-    if (level === 3) {
-      return location.locationTwos?.flatMap(loc => loc.locationThrees) ?? 'No Level 3 Data';
-    }
-  
-    return 'Invalid Level';
-  }
-  
-
   @get('/generate-report')
   @response(200, {
     description: 'Generate Report of Submissions with Status Mapping',
@@ -106,7 +126,7 @@ export class ReportingController {
               status: {type: 'string'},
               reporter: {type: 'string'},
               reviewer: {type: 'string'},
-              entity: {type: 'any'},
+              entity: {type: 'object'},
             },
           },
         },
@@ -117,7 +137,7 @@ export class ReportingController {
     const assignments = await this.assignmentDataRepository.find();
     const submissions = await this.submissionDataRepository.find();
 
-    const reportData = [];
+    const reportDataMap = new Map<number, any[]>();
 
     for (const assignment of assignments) {
       const expectedPeriods = this.calculateReportingPeriods(
@@ -130,18 +150,22 @@ export class ReportingController {
       const reviewers = await this.getUsersByIds(assignment.reviewer_ids!);
 
       const reporterNames =
-        reporters.map(user => user.information['empname']).join(', ') ||
-        'Not Assigned';
+        reporters.map(user => ({
+          id: user.id,
+          name: user.information['empname'],
+        })) || [];
       const reviewerNames =
-        reviewers.map(user => user.information['empname']).join(', ') ||
-        'Not Assigned';
+        reviewers.map(user => ({
+          id: user.id,
+          name: user.information['empname'],
+        })) || [];
 
-      const entity = await this.getEntity(
+      const entity = await this.getSortedEntity(
         assignment.level,
         assignment.locationId,
       );
 
-      for (const period of expectedPeriods) {
+      for (const periodGroup of expectedPeriods) {
         const submission = submissions.find(
           sub =>
             sub.dcfId === assignment.dcfId &&
@@ -150,17 +174,25 @@ export class ReportingController {
 
         const status = this.getSubmissionStatus(submission);
 
-        reportData.push({
+        const reportItem = {
           dcfId: assignment.dcfId,
-          reporting_period: period,
+          reporting_period: periodGroup,
           status: status,
           reporter: reporterNames,
           reviewer: reviewerNames,
           entity: entity,
-        });
+        };
+
+        if (reportDataMap.has(assignment.dcfId)) {
+          const existingData = reportDataMap.get(assignment.dcfId)!;
+
+          existingData.push(reportItem);
+        } else {
+          reportDataMap.set(assignment.dcfId, [reportItem]);
+        }
       }
     }
 
-    return reportData;
+    return Array.from(reportDataMap.values()).flat();
   }
 }

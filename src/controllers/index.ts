@@ -1,5 +1,3 @@
-export * from './ping.controller';
-export * from './todo.controller';
 export * from './assignment-data.controller';
 export * from './submission-data.controller';
 export * from './location-data.controller';

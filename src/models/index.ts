@@ -1,4 +1,3 @@
-export * from './todo.model';
 export * from './assignment-data.model';
 export * from './submission-data.model';
 export * from './location-data.model';

@@ -1,4 +1,3 @@
-export * from './todo.repository';
 export * from './assignment-data.repository';
 export * from './submission-data.repository';
 export * from './location-data.repository';

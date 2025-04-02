@@ -1,4 +1,3 @@
-export * from './db.datasource';
 export * from './assignment-data.datasource';
 export * from './submission-data.datasource';
 export * from './location-data.datasource';

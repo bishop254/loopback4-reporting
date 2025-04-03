@@ -1,71 +1,75 @@
 import {repository} from '@loopback/repository';
+import {get, response} from '@loopback/rest';
+import {FormData, UserData} from '../models';
 import {
   AssignmentDataRepository,
-  UserDataRepository,
-  SubmissionDataRepository,
+  FormDataRepository,
   LocationDataRepository,
+  SubmissionDataRepository,
+  UserDataRepository,
 } from '../repositories';
-import {get, response} from '@loopback/rest';
-import {UserData} from '../models';
 
 export class ReportingController {
   constructor(
     @repository(AssignmentDataRepository)
-    public assignmentDataRepository: AssignmentDataRepository,
+    private readonly assignmentRepo: AssignmentDataRepository,
     @repository(UserDataRepository)
-    public userDataRepository: UserDataRepository,
+    private readonly userRepo: UserDataRepository,
     @repository(SubmissionDataRepository)
-    public submissionDataRepository: SubmissionDataRepository,
+    private readonly submissionRepo: SubmissionDataRepository,
     @repository(LocationDataRepository)
-    public locationDataRepository: LocationDataRepository,
+    private readonly locationRepo: LocationDataRepository,
+    @repository(FormDataRepository)
+    private readonly formDataRepo: FormDataRepository,
   ) {}
 
   async getUsersByIds(userIds: number[]): Promise<UserData[]> {
-    return await this.userDataRepository.find({
-      where: {id: {inq: userIds}},
-    });
+    return this.userRepo.find({where: {id: {inq: userIds}}});
   }
 
-  async getSortedEntity(
-    level: number,
-    locationId: number,
-  ): Promise<{id: number; locationData: string} | string> {
-    const locations = await this.locationDataRepository.find();
+  async getFormDataById(dcfId: number): Promise<FormData | null> {
+    return this.formDataRepo.findOne({where: {id: dcfId}});
+  }
 
-    const locationMap = new Map<number, {id: number; locationData: string}>();
-    const locationTwoMap = new Map<
-      number,
-      {id: number; locationData: string}
-    >();
-    const locationThreeMap = new Map<
-      number,
-      {id: number; locationData: string}
-    >();
+  async getSortedEntity(level: number, locationId: number) {
+    const locations = await this.locationRepo.find();
 
-    for (const loc of locations) {
-      locationMap.set(loc.id!, {id: loc.id!, locationData: loc.locationData});
+    const locationMap = new Map(
+      locations.map(loc => [
+        loc.id,
+        {id: loc.id, locationData: loc.locationData},
+      ]),
+    );
 
-      for (const locTwo of loc.locationTwos ?? []) {
-        locationTwoMap.set(locTwo.id, {
-          id: locTwo.id,
-          locationData: locTwo.locationData,
-        });
+    const locationTwoMap = new Map(
+      locations.flatMap(
+        loc =>
+          loc.locationTwos?.map(locTwo => [
+            locTwo.id,
+            {id: locTwo.id, locationData: locTwo.locationData},
+          ]) || [],
+      ),
+    );
 
-        for (const locThree of locTwo.locationThrees ?? []) {
-          locationThreeMap.set(locThree.id, {
-            id: locThree.id,
-            locationData: locThree.locationData,
-          });
-        }
-      }
-    }
+    const locationThreeMap = new Map(
+      locations.flatMap(
+        loc =>
+          loc.locationTwos?.flatMap(
+            locTwo =>
+              locTwo.locationThrees?.map(locThree => [
+                locThree.id,
+                {id: locThree.id, locationData: locThree.locationData},
+              ]) || [],
+          ) || [],
+      ),
+    );
 
-    if (level === 1) return locationMap.get(locationId) ?? 'No Data Found';
-    if (level === 2) return locationTwoMap.get(locationId) ?? 'No Level 2 Data';
-    if (level === 3)
-      return locationThreeMap.get(locationId) ?? 'No Level 3 Data';
-
-    return 'Invalid Level';
+    return (
+      (level === 1 && locationMap.get(locationId)) ||
+      (level === 2 && locationTwoMap.get(locationId)) ||
+      (level === 3 && locationThreeMap.get(locationId)) ||
+      'No Data Found'
+    );
   }
 
   calculateReportingPeriods(
@@ -78,10 +82,10 @@ export class ReportingController {
     const end = new Date(endDate);
 
     while (currentDate <= end) {
-      const periodGroup = [];
+      const periodGroup: string[] = [];
       for (let i = 0; i < frequency && currentDate <= end; i++) {
         periodGroup.push(
-          `${currentDate.getMonth() + 1}-${currentDate.getFullYear()}`,
+          `${String(currentDate.getMonth() + 1).padStart(2, '0')}-${currentDate.getFullYear()}`,
         );
         currentDate.setMonth(currentDate.getMonth() + 1);
       }
@@ -92,25 +96,13 @@ export class ReportingController {
   }
 
   getSubmissionStatus(submission: any): string {
-    if (
-      !submission ||
-      submission.type === undefined ||
-      submission.type === null
-    ) {
-      return 'Pending Submission';
-    }
-
-    switch (submission.type) {
-      case 1:
-        return 'Under Review';
-      case 2:
-        return 'Under Approval';
-      case 3:
-        return 'Approved';
-      default:
-        return 'Pending Submission';
-    }
+    return submission?.type
+      ? ['Pending Submission', 'Under Review', 'Under Approval', 'Approved'][
+          submission.type
+        ] || 'Pending Submission'
+      : 'Pending Submission';
   }
+
   @get('/generate-report')
   @response(200, {
     description: 'Generate Report of Submissions with Status Mapping',
@@ -134,10 +126,12 @@ export class ReportingController {
     },
   })
   async generateReport(): Promise<any[]> {
-    const assignments = await this.assignmentDataRepository.find();
-    const submissions = await this.submissionDataRepository.find();
+    const [assignments, submissions] = await Promise.all([
+      this.assignmentRepo.find(),
+      this.submissionRepo.find(),
+    ]);
 
-    const reportDataMap = new Map<number, any[]>();
+    const reportData: any[] = [];
 
     for (const assignment of assignments) {
       const expectedPeriods = this.calculateReportingPeriods(
@@ -146,53 +140,47 @@ export class ReportingController {
         assignment.frequency,
       );
 
-      const reporters = await this.getUsersByIds(assignment.reporter_ids);
-      const reviewers = await this.getUsersByIds(assignment.reviewer_ids!);
+      const [reporters, reviewers, entity, formData] = await Promise.all([
+        this.getUsersByIds(assignment.reporter_ids),
+        this.getUsersByIds(assignment.reviewer_ids ?? []),
+        this.getSortedEntity(assignment.level, assignment.locationId),
+        this.getFormDataById(assignment.dcfId),
+      ]);
 
-      const reporterNames =
-        reporters.map(user => ({
-          id: user.id,
-          name: user.information['empname'],
-        })) || [];
-      const reviewerNames =
-        reviewers.map(user => ({
-          id: user.id,
-          name: user.information['empname'],
-        })) || [];
-
-      const entity = await this.getSortedEntity(
-        assignment.level,
-        assignment.locationId,
-      );
+      const reporterNames = reporters.map(user => ({
+        id: user.id,
+        name: user.information['empname'],
+      }));
+      const reviewerNames = reviewers.map(user => ({
+        id: user.id,
+        name: user.information['empname'],
+      }));
 
       for (const periodGroup of expectedPeriods) {
+        const formattedPeriods = periodGroup.map(period => {
+          const [month, year] = period.split('-');
+          return `${month.padStart(2, '0')}-${year}`;
+        });
+
         const submission = submissions.find(
           sub =>
             sub.dcfId === assignment.dcfId &&
-            sub.locationId === assignment.locationId,
+            sub.locationId === assignment.locationId &&
+            formattedPeriods.some(fp => sub.reporting_period.includes(fp)),
         );
 
-        const status = this.getSubmissionStatus(submission);
-
-        const reportItem = {
+        reportData.push({
           dcfId: assignment.dcfId,
-          reporting_period: periodGroup,
-          status: status,
+          reporting_period: formattedPeriods,
+          status: this.getSubmissionStatus(submission),
           reporter: reporterNames,
           reviewer: reviewerNames,
-          entity: entity,
-        };
-
-        if (reportDataMap.has(assignment.dcfId)) {
-          const existingData = reportDataMap.get(assignment.dcfId)!;
-
-          existingData.push(reportItem);
-        } else {
-          reportDataMap.set(assignment.dcfId, [reportItem]);
-        }
+          entity,
+          formData,
+        });
       }
     }
 
-    return Array.from(reportDataMap.values()).flat();
+    return reportData;
   }
 }
